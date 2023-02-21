@@ -266,9 +266,6 @@ namespace VRCFaceTracking.Tools.Avatar_Setup
                     return;
 
                 //Rect r = GetWindow(typeof(VRCFTManager)).position;
-
-                var _parameters = allUserParameters;
-
                 _mesh = _meshes[_selectMesh];
 
                 _blendshapesFromMesh = GenerateBlendshapeList(_mesh);
@@ -281,36 +278,15 @@ namespace VRCFaceTracking.Tools.Avatar_Setup
                             "Sets a blendshape for each parameter to a best-matched keyword."
                         )))
                 {
-                    Parallel.ForEach(_parameters, s =>
+                    Parallel.ForEach(customParametersContainer.Parameters, s =>
                     {
                         int i = SuggestStringToIndex(s.Name, _blendshapesFromMesh); // blendshape index
-
-                        if (i != -1)
-                            s.IsUsed = true;
-                        else
-                        {
-                            s.IsUsed = false;
-                        }
-                        FTBlendShapeAnimation shape = (FTBlendShapeAnimation) s.Animations.First(a => a.GetType() == typeof(FTBlendShapeAnimation));
-                        s.Animations.Clear();
-                        s.Animations.Add(new FTBlendShapeAnimation 
-                        { 
-                            Shapes = new List<FTBlendShape>
-                            {
-                                new FTBlendShape
-                                {
-                                    name = s.Name,
-                                    blendshapeIndex = i,
-                                    meshPath = _meshes[_selectMesh].ToString()
-                                }
-                            }
-                        });
                     });
                 }
 
                 showBlendshapes = EditorGUILayout.Toggle
                 (
-                    "Show Blendshapes",
+                    "Show Shapes",
                     showBlendshapes,
                     new GUILayoutOption[]
                         {
@@ -323,29 +299,13 @@ namespace VRCFaceTracking.Tools.Avatar_Setup
                 {
                     scrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.Height(512));
 
-                    foreach (var parameter in _parameters)
+                    foreach (var parameter in customParametersContainer.Parameters)
                     {
-                        EditorGUILayout.BeginHorizontal();
-                        parameter.IsUsed = EditorGUILayout.Toggle(parameter.IsUsed, new GUILayoutOption[]
-                        {
-                            GUILayout.MaxWidth(16)
-                        });
-
                         EditorGUILayout.LabelField(parameter.Name + " : " + iter, new GUILayoutOption[]
                         {
                             GUILayout.MaxWidth(256)
                         });
-
-                        if (parameter.IsUsed)
-                        {
-                            foreach (FTBlendShapeAnimation blendshapeAnim in parameter.Animations)
-                                foreach (FTBlendShape shape in blendshapeAnim.Shapes)
-                                    EditorGUILayout.Popup(shape.blendshapeIndex, _blendshapesFromMesh.ToArray());
-                        }
-                        else _selectBlendshapes[iter] = -1;
                         iter++;
-
-                        EditorGUILayout.EndHorizontal();
                     }
 
                     EditorGUILayout.EndScrollView();

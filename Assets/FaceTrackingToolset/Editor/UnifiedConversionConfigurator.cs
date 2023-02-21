@@ -52,7 +52,7 @@ public static class UnifiedConversionConfigurator
             EditorGUI.indentLevel = 2;
 
             eye.lookUpShape = EditorGUILayout.TextField(eyeName + " Eye Look Up", eye.lookUpShape);
-            eye.lookDownShape = EditorGUILayout.TextField(eyeName + " Eye Look Down", eye.lookUpShape);
+            eye.lookDownShape = EditorGUILayout.TextField(eyeName + " Eye Look Down", eye.lookDownShape);
             eye.lookRightShape =
                 rightHandCoord ?
                 EditorGUILayout.TextField(eyeName + " Eye Look Out", eye.lookRightShape) :
@@ -172,8 +172,12 @@ public static class UnifiedConversionConfigurator
 
             EditorGUILayout.EndHorizontal();
 
-
             EditorGUILayout.BeginHorizontal();
+
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.HelpBox(connectionsMsg, MessageType.None);
+
             GUILayout.Space(15);
 
             if (GUILayout.Button(
@@ -184,9 +188,8 @@ public static class UnifiedConversionConfigurator
                 customParametersContainer.Parameters.Insert(customParametersContainer.Parameters.IndexOf(parameter) + 1, new UserConversionParameter { Name = "New Shape", UnifiedConnections = new List<UnifiedExpressions>() });
             }
 
-            EditorGUILayout.EndHorizontal();
 
-            EditorGUILayout.HelpBox(connectionsMsg, MessageType.None);
+            GUILayout.Space(30);
         }
 
         EditorGUILayout.BeginHorizontal();
