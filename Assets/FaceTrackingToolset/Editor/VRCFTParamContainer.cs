@@ -241,46 +241,22 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             public int Quality { get; set; }
         }
 
-        public static List<FTParameter> AllUnifiedBaseParameters = new List<FTParameter>
+        public static readonly List<FTParameter> AllUnifiedBaseParameters = new List<FTParameter>
         {
-            new FTParameter
-            {
-                Name = "EyeLeftX", 
-                Importance = 11,
-                MinimumSize = 4 
-            },
-            new FTParameter
-            {
-                Name = "EyeRightX",
-                Importance = 11,
-                MinimumSize = 4
-            },
-            new FTParameter
-            {
-                Name = "EyeLeftY",
-                Importance = 11,
-                MinimumSize = 4
-            },
-            new FTParameter
-            { 
-                Name = "EyeRightY", 
-                Importance = 11, 
-                MinimumSize = 4 
-            },
-            new FTParameter
-            { 
-                Name = "PupilDiameterLeft", 
-                Importance = 6, 
-                MinimumSize = 2 
-            },
+            new FTParameter { Name = "EyeLeftX", Importance = 11,MinimumSize = 4 },
+            new FTParameter { Name = "EyeRightX", Importance = 11, MinimumSize = 4 },
+            new FTParameter { Name = "EyeLeftY", Importance = 11, MinimumSize = 4 },
+            new FTParameter { Name = "EyeRightY", Importance = 11, MinimumSize = 4 },
+            new FTParameter { Name = "PupilDiameterLeft", Importance = 6, MinimumSize = 2 },
             new FTParameter{ Name = "PupilDiameterRight", Importance = 6, MinimumSize = 2 },
             new FTParameter{ Name = "EyeOpenLeft", Importance = 10, MinimumSize = 4 },
             new FTParameter{ Name = "EyeOpenRight", Importance = 10, MinimumSize = 4 },
+
             new FTParameter{ Name = "EyeSquintRight", Importance = 8, MinimumSize = 2 },
             new FTParameter{ Name = "EyeSquintLeft", Importance = 8, MinimumSize = 2 },
             new FTParameter{ Name = "EyeWideRight", Importance = 10, MinimumSize = 2 },
             new FTParameter{ Name = "EyeWideLeft", Importance = 10, MinimumSize = 2 },
-            // Primary brow parameters
+
             new FTParameter{ Name = "BrowPinchRight", Importance = 9, MinimumSize = 4 },
             new FTParameter{ Name = "BrowPinchLeft", Importance = 9, MinimumSize = 4 },
             new FTParameter{ Name = "BrowLowererRight", Importance = 9, MinimumSize = 4 },
@@ -383,7 +359,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new FTParameter{ Name = "LipSuckCornerLeft", Importance = 0, MinimumSize = 4 },
         };
 
-        public static List<CombinedFTParameter> UnifiedCombinedEyeExpressions = new List<CombinedFTParameter>
+        public static readonly List<CombinedFTParameter> UnifiedCombinedEyeExpressions = new List<CombinedFTParameter>
         {
             new CombinedFTParameter
             {
@@ -483,7 +459,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 }
             },
         };
-        public static List<CombinedFTParameter> UnifiedCombinedLipExpressions = new List<CombinedFTParameter>
+        public static readonly List<CombinedFTParameter> UnifiedCombinedLipExpressions = new List<CombinedFTParameter>
         {
             new CombinedFTParameter
             {
@@ -621,7 +597,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 }
             },
         };
-        public static List<CombinedFTParameter> UnifiedCombinedJawExpressions = new List<CombinedFTParameter>
+        public static readonly List<CombinedFTParameter> UnifiedCombinedJawExpressions = new List<CombinedFTParameter>
         {
             new CombinedFTParameter
             {
@@ -650,7 +626,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 }
             },
         };
-        public static List<CombinedFTParameter> UnifiedCombinedCheekExpressions = new List<CombinedFTParameter> 
+        public static readonly List<CombinedFTParameter> UnifiedCombinedCheekExpressions = new List<CombinedFTParameter> 
         {
             new CombinedFTParameter
             {
@@ -724,7 +700,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 }
             },
         };
-        public static List<CombinedFTParameter> UnifiedCombinedSmileSadExpressions = new List<CombinedFTParameter>
+        public static readonly List<CombinedFTParameter> UnifiedCombinedSmileSadExpressions = new List<CombinedFTParameter>
         {
             new CombinedFTParameter
             {
@@ -750,6 +726,32 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                     new FTCombinedParameterPart {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthFrownRight"},
+                }
+            },
+            new CombinedFTParameter
+            {
+                Name = "MouthSmileRight", Quality = 8, MinimumSize = 4, Importance = 10,
+                Parameters = new List<FTCombinedParameterPart>
+                {
+                    new FTCombinedParameterPart {
+                        CombinedDriver = BlendTreeDriveType.Positive,
+                        Name = "MouthCornerPullRight"},
+                    new FTCombinedParameterPart {
+                        CombinedDriver = BlendTreeDriveType.Positive,
+                        Name = "MouthCornerSlantRight"}
+                }
+            },
+            new CombinedFTParameter
+            {
+                Name = "MouthSmileLeft", Quality = 8, MinimumSize = 4, Importance = 10,
+                Parameters = new List<FTCombinedParameterPart>
+                {
+                    new FTCombinedParameterPart {
+                        CombinedDriver = BlendTreeDriveType.Positive,
+                        Name = "MouthCornerPullLeft"},
+                    new FTCombinedParameterPart {
+                        CombinedDriver = BlendTreeDriveType.Positive,
+                        Name = "MouthCornerSlantLeft"}
                 }
             },
             new CombinedFTParameter
@@ -879,7 +881,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 }
             },
         };
-        public static List<CombinedFTParameter> UnifiedCombinedMouthDirection = new List<CombinedFTParameter>
+        public static readonly List<CombinedFTParameter> UnifiedCombinedMouthDirection = new List<CombinedFTParameter>
         {
             new CombinedFTParameter
             {
@@ -927,7 +929,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 }
             },
         };
-        public static List<CombinedFTParameter> UnifiedCombinedMouthExpressions = new List<CombinedFTParameter>
+        public static readonly List<CombinedFTParameter> UnifiedCombinedMouthExpressions = new List<CombinedFTParameter>
         {
             new CombinedFTParameter
             {
@@ -1110,8 +1112,34 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 }
             },
         };
-        public static List<CombinedFTParameter> UnifiedCombinedBrowExpressions = new List<CombinedFTParameter>
+        public static readonly List<CombinedFTParameter> UnifiedCombinedBrowExpressions = new List<CombinedFTParameter>
         {
+            new CombinedFTParameter
+            {
+                Name = "BrowDownRight", Quality = 9, MinimumSize = 2, Importance = 9,
+                Parameters = new List<FTCombinedParameterPart>
+                {
+                    new FTCombinedParameterPart {
+                        CombinedDriver = BlendTreeDriveType.Positive,
+                        Name = "BrowLowererRight"},
+                    new FTCombinedParameterPart {
+                        CombinedDriver = BlendTreeDriveType.Positive,
+                        Name = "BrowPinchRight"},
+                }
+            },
+            new CombinedFTParameter
+            {
+                Name = "BrowDownLeft", Quality = 9, MinimumSize = 2, Importance = 9,
+                Parameters = new List<FTCombinedParameterPart>
+                {
+                    new FTCombinedParameterPart {
+                        CombinedDriver = BlendTreeDriveType.Positive,
+                        Name = "BrowLowererLeft"},
+                    new FTCombinedParameterPart {
+                        CombinedDriver = BlendTreeDriveType.Positive,
+                        Name = "BrowPinchLeft"},
+                }
+            },
             new CombinedFTParameter
             {
                 Name = "BrowsDown", Quality = 8, MinimumSize = 2, Importance = 9,
@@ -1227,7 +1255,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 }
             },
         };
-        public static List<CombinedFTParameter> UnifiedCombinedTongueExpressions = new List<CombinedFTParameter>
+        public static readonly List<CombinedFTParameter> UnifiedCombinedTongueExpressions = new List<CombinedFTParameter>
         {
             new CombinedFTParameter
             {
@@ -1283,7 +1311,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             },
         };
 
-        public static List<CombinedFTParameter> AllUnifiedCombinedExpressions =
+        public static readonly List<CombinedFTParameter> AllUnifiedCombinedExpressions =
             UnifiedCombinedEyeExpressions
             .Concat(UnifiedCombinedJawExpressions)
             .Concat(UnifiedCombinedSmileSadExpressions)
@@ -1294,7 +1322,5 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             .Concat(UnifiedCombinedBrowExpressions)
             .Concat(UnifiedCombinedTongueExpressions)
             .ToList();
-
-        public static List<FTParameter> AllUnifiedParameters = AllUnifiedBaseParameters.Concat(AllUnifiedCombinedExpressions).ToList();
     }
 }

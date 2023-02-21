@@ -26,10 +26,9 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
         public static List<FTParameter> RecommendParameters(List<FTParameter> parameters, List<CombinedFTParameter> combinedParameters, ParameterHandlerBehavior behavior = ParameterHandlerBehavior.Default)
         {
             List<FTParameter> parametersToOutput = parameters.Where(p => p.Size <= availableBits && p.Importance >= importanceThreshold).ToList();
-            List<CombinedFTParameter> combinedParametersToOutput = combinedParameters.Where(p => p.Size <= availableBits).OrderBy(cp => cp.Quality).ToList();
 
             if (behavior != ParameterHandlerBehavior.NoCombined)
-                CombineBaseParameters(ref parametersToOutput, combinedParametersToOutput); // Sort parameters by importance
+                CombineBaseParameters(ref parametersToOutput, combinedParameters, qualityThreshold); // Sort parameters by importance
 
             if (behavior != ParameterHandlerBehavior.NoImportance)
                 parametersToOutput = parametersToOutput.OrderByDescending(p => p.Importance).ToList(); // Sort parameters by importance
@@ -41,11 +40,16 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
 
         }
 
-        public static void CombineBaseParameters(ref List<FTParameter> parametersToOutput, List<CombinedFTParameter> combinedParametersToOutput)
+        public static void CombineBaseParameters(ref List<FTParameter> parametersToOutput, List<CombinedFTParameter> combinedParameters, int quality)
         {
+
+            List<CombinedFTParameter> combinedParametersToOutput = combinedParameters.Where(p => p.Size <= availableBits).OrderBy(cp => cp.Quality).ToList();
             List<FTParameter> _parametersToRemove = new List<FTParameter>();
+
             foreach (var combinedParameter in combinedParametersToOutput) // incorporates combined parameters by replacing existing combininations.
             {
+                if (combinedParameter.Quality < quality)
+                    continue;
 
                 _parametersToRemove.Clear();
                 try
@@ -73,7 +77,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                     continue;
                 }
 
-                //Debug.Log("Replaced parameters with " + combinedParameter.Name);
+                //Debug.Log("Replaced parameters with " + combinedParameter.Name + " q: " + combinedParameter.Quality);
                 foreach (var _parameter in _parametersToRemove)
                     parametersToOutput.Remove(_parameter);
                 parametersToOutput.Add(combinedParameter);
@@ -84,6 +88,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
         {
             List<FTParameter> recommendedParameters = new List<FTParameter>();
 
+            int tries = 0;
             int highestImportance = 11;
             int _importanceBias = importanceBias;
             int minimumTotalSize = 0;
@@ -91,10 +96,8 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             int maximumBits = 0;
             parametersToOutput.ForEach(p => maximumBits += p.MaximumSize);
 
-            Debug.Log(maximumBits);
-
             int totalBits = 0;
-            while (totalBits < availableBits && totalBits < maximumBits)
+            while (totalBits < availableBits && totalBits < maximumBits && tries < 30)
             {
                 foreach (var parameter in parametersToOutput.Where(p => p.Importance >= highestImportance)) // Add parameters and stop if we hit the cap.
                 {
@@ -118,7 +121,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                     var minIter = 0;
                     while (minIter <= minimumTotalSize)
                     {
-                        foreach (var parameter in recommendedParameters.Where(p => p.MinimumSize <= minIter))
+                        foreach (var parameter in recommendedParameters.Where(p => p.Size <= minIter))
                         {
                             if (totalBits + 1 <= availableBits && parameter.Size < parameter.MaximumSize)
                             {
@@ -143,6 +146,8 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                         totalBits += 1;
                     }
                 }
+
+                tries++;
             }
 
             return recommendedParameters;
