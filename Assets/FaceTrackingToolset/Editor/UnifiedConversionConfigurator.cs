@@ -5,11 +5,11 @@ using UnityEditor;
 using UnityEngine;
 using VRCFaceTracking.Tools.Avatar_Setup.Containers;
 using static VRCFaceTracking.Tools.Avatar_Setup.Containers.VRCFTParameterContainers;
+using static VRCFaceTracking.Tools.Avatar_Setup.FaceTrackingToolsetWindow;
 using System;
 
 public static class UnifiedConversionConfigurator
 {
-    public static UserConversionConfig customParametersContainer;
     private static bool _initializedParameters = false;
 
     private static GUIStyle arrowStyle = new GUIStyle(EditorStyles.miniButton);
@@ -25,70 +25,12 @@ public static class UnifiedConversionConfigurator
         arrowStyle.normal.textColor = Color.white;
         arrowStyle.fontSize = 16;
 
-        if (customParametersContainer == null)
-            customParametersContainer = ScriptableObject.CreateInstance<UserConversionConfig>();
-
-        customParametersContainer = 
-            (UserConversionConfig)EditorGUILayout.ObjectField(
-                new GUIContent(
-                    "Config",
-                    "A preset configuration that stores Parameter Configuration data. " +
-                    "This is intended for saving configurations for use later or sharing."),
-                customParametersContainer,
-                typeof(UserConversionConfig),
-                false
-            );
-
-        EditorGUILayout.Space(10);
-
-        if (GUILayout.Button
-                (
-                    new GUIContent
-                    (
-                        "Save Config",
-                        "Saves Parameter configuration into an asset file."
-                    ),
-                    GUILayout.MaxWidth((float)Screen.width)
-                ))
-        {
-            if (AssetDatabase.GetAssetPath(customParametersContainer) == string.Empty)
-                AssetDatabase.CreateAsset(customParametersContainer, EditorUtility.SaveFilePanelInProject("Save Unified Conversion Configuration", "UserConversionConfig", "asset", ""));
-            EditorUtility.SetDirty(customParametersContainer);
-
-            AssetDatabase.SaveAssets();
-        }
-
-        EditorGUILayout.Space(20);
-
-        if (GUILayout.Button(
-            new GUIContent(
-                "Use Unified Expressions",
-                "Adds translation parameters that are 1:1 with Unified Expressions.")))
-        {
-            customParametersContainer.RightGaze.lookUpShape = "EyeLookUpRight";
-            customParametersContainer.RightGaze.lookDownShape = "EyeLookDownRight";
-            customParametersContainer.RightGaze.lookRightShape = "EyeLookOutRight";
-            customParametersContainer.RightGaze.lookLeftShape = "EyeLookInRight";
-
-            customParametersContainer.LeftGaze.lookUpShape = "EyeLookUpLeft";
-            customParametersContainer.LeftGaze.lookDownShape = "EyeLookDownLeft";
-            customParametersContainer.LeftGaze.lookRightShape = "EyeLookInLeft";
-            customParametersContainer.LeftGaze.lookLeftShape = "EyeLookOutLeft";
-
-            customParametersContainer.Parameters.Clear();
-            for (int i = 0; i < (int)UnifiedExpressions.Max; i++)
-                customParametersContainer.Parameters.Add(new UserConversionParameter 
-                { 
-                    Name = ((UnifiedExpressions)i).ToString(), 
-                    UnifiedConnections = new List<UnifiedExpressions> { (UnifiedExpressions) i } 
-                });
-        }
         showGazeDrawer = EditorGUILayout.Foldout(showGazeDrawer, "Eye Gaze Shapes");
         if (showGazeDrawer)
         {
             EditorGUI.indentLevel = 1;
-            DrawEyeDrawer("Right", ref customParametersContainer.RightGaze, true);
-            DrawEyeDrawer("Left", ref customParametersContainer.LeftGaze, false);
+            DrawEyeDrawer("Right", ref customParametersContainer.RightEye, true);
+            DrawEyeDrawer("Left", ref customParametersContainer.LeftEye, false);
             EditorGUI.indentLevel = 0;
         }
 
@@ -99,23 +41,33 @@ public static class UnifiedConversionConfigurator
         }
     }
 
-    private static void DrawEyeDrawer(string eyeName, ref UserEyeParameter gaze, bool rightHandCoord = true ) 
+    private static void DrawEyeDrawer(string eyeName, ref UserEyeParameter eye, bool rightHandCoord = true ) 
     {
         EditorGUI.indentLevel = 1;
         EditorGUILayout.LabelField(eyeName + " Eye Shapes");
-        
-        EditorGUI.indentLevel = 2;
 
-        gaze.lookUpShape = EditorGUILayout.TextField(eyeName + " Eye Look Up", gaze.lookUpShape);
-        gaze.lookDownShape = EditorGUILayout.TextField(eyeName + " Eye Look Down", gaze.lookUpShape);
-        gaze.lookRightShape = 
-            rightHandCoord ? 
-            EditorGUILayout.TextField(eyeName + " Eye Look Out", gaze.lookRightShape) : 
-            EditorGUILayout.TextField(eyeName + " Eye Look In", gaze.lookLeftShape);
-        gaze.lookLeftShape = 
-            rightHandCoord ? 
-            EditorGUILayout.TextField(eyeName + " Eye Look In", gaze.lookLeftShape) : 
-            EditorGUILayout.TextField(eyeName + " Eye Look Out", gaze.lookRightShape);
+        eye.showGazes = EditorGUILayout.Foldout(eye.showGazes, "Gaze");
+        if (eye.showGazes)
+        {
+            EditorGUI.indentLevel = 2;
+
+            eye.lookUpShape = EditorGUILayout.TextField(eyeName + " Eye Look Up", eye.lookUpShape);
+            eye.lookDownShape = EditorGUILayout.TextField(eyeName + " Eye Look Down", eye.lookUpShape);
+            eye.lookRightShape =
+                rightHandCoord ?
+                EditorGUILayout.TextField(eyeName + " Eye Look Out", eye.lookRightShape) :
+                EditorGUILayout.TextField(eyeName + " Eye Look In", eye.lookLeftShape);
+            eye.lookLeftShape =
+                rightHandCoord ?
+                EditorGUILayout.TextField(eyeName + " Eye Look In", eye.lookLeftShape) :
+                EditorGUILayout.TextField(eyeName + " Eye Look Out", eye.lookRightShape);
+        }
+        EditorGUILayout.Space(0);
+
+        EditorGUI.indentLevel = 1;
+
+        eye.openness = EditorGUILayout.TextField(eyeName + " Closed", eye.openness);
+        eye.pupilDiameter = EditorGUILayout.TextField(eyeName + " Pupil Diameter", eye.pupilDiameter);
 
         EditorGUI.indentLevel = 0;
 

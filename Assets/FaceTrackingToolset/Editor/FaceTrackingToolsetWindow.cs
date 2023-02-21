@@ -9,8 +9,8 @@ using UnityEngine;
 using VRC.SDK3.Avatars.Components;
 using VRC.SDK3.Avatars.ScriptableObjects;
 using VRCFaceTracking.Tools.Avatar_Setup.Containers;
-using static VRC.Dynamics.CollisionScene;
 using static VRCFaceTracking.Tools.Avatar_Setup.Containers.FTAnimationContainers;
+using static VRCFaceTracking.Tools.Avatar_Setup.Containers.FTParameterHandlers;
 using static VRCFaceTracking.Tools.Avatar_Setup.Containers.VRCFTParameterContainers;
 
 namespace VRCFaceTracking.Tools.Avatar_Setup
@@ -20,8 +20,11 @@ namespace VRCFaceTracking.Tools.Avatar_Setup
         int tab = 0;
 
         private VRCAvatarDescriptor _avdescriptor;
+        public static UserConversionConfig customParametersContainer;
+
         private SkinnedMeshRenderer _mesh;
         private SkinnedMeshRenderer[] _meshes;
+
         private List<string> _meshesNames;
         private List<string> _blendshapesFromMesh;
         private int[] _selectBlendshapes = new int[1024];
@@ -50,10 +53,74 @@ namespace VRCFaceTracking.Tools.Avatar_Setup
 
         private void OnGUI()
         {
-            tab = GUILayout.Toolbar(tab, new string[] { "Avatar Setup", "Conversions"});
+            if (customParametersContainer == null)
+                customParametersContainer = ScriptableObject.CreateInstance<UserConversionConfig>();
+            customParametersContainer =
+            (UserConversionConfig)EditorGUILayout.ObjectField(
+                new GUIContent(
+                    "Config",
+                    "A preset configuration that stores Parameter Configuration data. " +
+                    "This is intended for saving configurations for use later or sharing."),
+                customParametersContainer,
+                typeof(UserConversionConfig),
+                false
+            );
 
-            if (UnifiedConversionConfigurator.customParametersContainer.GetAllParameters() != null)
-                UnifiedConversionConfigurator.customParametersContainer.GetAllParameters().ForEach(p => allUserParameters.AddRange(p.ToUnifiedParameters()));
+            EditorGUILayout.Space(10);
+
+            if (GUILayout.Button
+                    (
+                        new GUIContent
+                        (
+                            "Save Config",
+                            "Saves Parameter configuration into an asset file."
+                        ),
+                        GUILayout.MaxWidth((float)Screen.width)
+                    ))
+            {
+                if (AssetDatabase.GetAssetPath(customParametersContainer) == string.Empty)
+                    AssetDatabase.CreateAsset(customParametersContainer, EditorUtility.SaveFilePanelInProject("Save Unified Conversion Configuration", "UserConversionConfig", "asset", ""));
+                EditorUtility.SetDirty(customParametersContainer);
+
+                AssetDatabase.SaveAssets();
+            }
+
+            EditorGUILayout.Space(5);
+
+            if (GUILayout.Button(
+                new GUIContent(
+                    "Use Unified Expressions",
+                    "Adds translation parameters that are 1:1 with Unified Expressions.")))
+            {
+                customParametersContainer.RightEye.lookUpShape = "EyeLookUpRight";
+                customParametersContainer.RightEye.lookDownShape = "EyeLookDownRight";
+                customParametersContainer.RightEye.lookRightShape = "EyeLookOutRight";
+                customParametersContainer.RightEye.lookLeftShape = "EyeLookInRight";
+                customParametersContainer.RightEye.openness = "EyeClosedRight";
+                customParametersContainer.RightEye.pupilDiameter = "PupilDiameterRight";
+
+                customParametersContainer.LeftEye.lookUpShape = "EyeLookUpLeft";
+                customParametersContainer.LeftEye.lookDownShape = "EyeLookDownLeft";
+                customParametersContainer.LeftEye.lookRightShape = "EyeLookInLeft";
+                customParametersContainer.LeftEye.lookLeftShape = "EyeLookOutLeft";
+                customParametersContainer.LeftEye.openness = "EyeClosedLeft";
+                customParametersContainer.LeftEye.pupilDiameter = "PupilDiameterLeft";
+
+                customParametersContainer.Parameters.Clear();
+                for (int i = 0; i < (int)UnifiedExpressions.Max; i++)
+                    customParametersContainer.Parameters.Add(new UserConversionParameter
+                    {
+                        Name = ((UnifiedExpressions)i).ToString(),
+                        UnifiedConnections = new List<UnifiedExpressions> { (UnifiedExpressions)i }
+                    });
+            }
+
+            EditorGUILayout.Space(20);
+
+            tab = GUILayout.Toolbar(tab, new string[] { "Avatar Setup", "Conversions" });
+
+            allUserParameters.Clear();
+            customParametersContainer.GetAllParameters().ForEach(p => allUserParameters.AddRange(p.ToUnifiedParameters()));
 
 
             switch (tab)
@@ -93,6 +160,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup
             if (!advancedSuggest)
             {
                 FTParameterHandlers.importanceBias = 1;
+                FTParameterHandlers.importanceThreshold = 1;
                 switch (FTParameterHandlers.availableBits)
                 {
                     case int i when i <= 40:
@@ -139,6 +207,15 @@ namespace VRCFaceTracking.Tools.Avatar_Setup
                     FTParameterHandlers.importanceBias,
                     0,
                     4
+                );
+
+                FTParameterHandlers.importanceThreshold = (int)EditorGUILayout.Slider(
+                    new GUIContent(
+                        "Parameter Threshold",
+                        "1 removes currently unused shapes from all interfaces"),
+                    FTParameterHandlers.importanceThreshold,
+                    0,
+                    11
                 );
             }
 

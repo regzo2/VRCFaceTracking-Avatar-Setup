@@ -204,7 +204,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
 
             // Relevant to organizing and compacting the expression parameters.
             private int minimumSize;
-            private int maximumSize; // 8 = float parameter, <8 is a binary parameter.
+            private int maximumSize = GLOBAL_MAXIMUM_SIZE; // 8 = float parameter, <8 is a binary parameter.
 
             public string Name { get; set; }
             public int Size { get; set; }

@@ -14,25 +14,29 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
     public class UserConversionConfig : ScriptableObject
     {
         [SerializeField]
-        public UserEyeParameter RightGaze = new UserEyeParameter 
+        public UserEyeParameter RightEye = new UserEyeParameter 
         { 
-            Name = "EyeRight",
+            Name = "Right",
             lookUpShape = "EyeLookUpRight",
             lookDownShape = "EyeLookDownRight",
             lookRightShape = "EyeLookOutRight",
-            lookLeftShape = "EyeLookInRight"
+            lookLeftShape = "EyeLookInRight",
+            pupilDiameter = "PupilDiameterRight",
+            openness = "EyeClosedRight"
         };
         [SerializeField]
-        public UserEyeParameter LeftGaze = new UserEyeParameter 
+        public UserEyeParameter LeftEye = new UserEyeParameter 
         { 
-            Name = "EyeLeft",
+            Name = "Left",
             lookUpShape = "EyeLookUpLeft",
             lookDownShape = "EyeLookDownLeft",
             lookRightShape = "EyeLookInLeft",
-            lookLeftShape = "EyeLookOutLeft"
+            lookLeftShape = "EyeLookOutLeft",
+            pupilDiameter = "PupilDiameterLeft",
+            openness = "EyeClosedLeft"
         };
         [SerializeField]
         public List<UserConversionParameter> Parameters = new List<UserConversionParameter>();
-        public List<IUserConversionParameter> GetAllParameters() => new List<IUserConversionParameter> { RightGaze, LeftGaze }.Concat(Parameters).ToList();
+        public List<IUserConversionParameter> GetAllParameters() => new List<IUserConversionParameter> { RightEye, LeftEye }.Concat(Parameters).ToList();
     }
 }

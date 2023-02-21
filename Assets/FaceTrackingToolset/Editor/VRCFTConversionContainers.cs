@@ -39,7 +39,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             }
             catch (NullReferenceException)
             {
-                return new List<FTParameter>();
+                return parameters;
             }
             /*
             Parallel.ForEach(UnifiedConnections, rep =>
@@ -77,6 +77,13 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
         [SerializeField]
         public string lookRightShape;
 
+        public bool showGazes = false;
+
+        [SerializeField]
+        public string pupilDiameter;
+        [SerializeField]
+        public string openness;
+
         public List<FTParameter> ToUnifiedParameters()
         {
             List<FTParameter> parameters = new List<FTParameter>();
@@ -87,8 +94,8 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 {
                     if (param.Name.Contains(Name))
                         parameters.Add(param);
-                    if (parameters.Count == 2)
-                        break;
+                    if (param.Name.Contains(pupilDiameter))
+                        parameters.Add(param);
                 }
             }
             catch (NullReferenceException)

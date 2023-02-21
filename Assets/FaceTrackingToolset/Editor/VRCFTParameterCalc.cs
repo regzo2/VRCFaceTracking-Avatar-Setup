@@ -18,7 +18,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             NoImportance,
         }
 
-        public static int availableBits = VRCExpressionParameters.MAX_PARAMETER_COST;
+        public static int availableBits;
         public static int qualityThreshold;
         public static int importanceThreshold = 1;
         public static int importanceBias;
@@ -27,15 +27,26 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
         {
             List<FTParameter> parametersToOutput = parameters.Where(p => p.Size <= availableBits && p.Importance >= importanceThreshold).ToList();
             List<CombinedFTParameter> combinedParametersToOutput = combinedParameters.Where(p => p.Size <= availableBits).OrderBy(cp => cp.Quality).ToList();
-            List<FTParameter> _parametersToRemove = new List<FTParameter>();
 
+            if (behavior != ParameterHandlerBehavior.NoCombined)
+                CombineBaseParameters(ref parametersToOutput, combinedParametersToOutput); // Sort parameters by importance
+
+            if (behavior != ParameterHandlerBehavior.NoImportance)
+                parametersToOutput = parametersToOutput.OrderByDescending(p => p.Importance).ToList(); // Sort parameters by importance
+
+            if (behavior == ParameterHandlerBehavior.NoCompression)
+                return parametersToOutput;
+
+            return CompressParameters(parametersToOutput);
+
+        }
+
+        public static void CombineBaseParameters(ref List<FTParameter> parametersToOutput, List<CombinedFTParameter> combinedParametersToOutput)
+        {
+            List<FTParameter> _parametersToRemove = new List<FTParameter>();
             foreach (var combinedParameter in combinedParametersToOutput) // incorporates combined parameters by replacing existing combininations.
             {
-                if (combinedParameter.Quality < qualityThreshold || behavior == ParameterHandlerBehavior.NoCombined)
-                {
-                    parametersToOutput.Remove(combinedParameter);
-                    continue;
-                }
+
                 _parametersToRemove.Clear();
                 try
                 {
@@ -51,6 +62,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                             combinedParameter.Parameters[i].Animations = result.Animations; // use results data.
                             combinedParameter.Parameters[i].Importance = result.Importance;
                             combinedParameter.Parameters[i].MinimumSize = result.MinimumSize;
+                            combinedParameter.Parameters[i].MaximumSize = result.MaximumSize;
                             _parametersToRemove.Add(result);
                         }
                     }
@@ -66,26 +78,20 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                     parametersToOutput.Remove(_parameter);
                 parametersToOutput.Add(combinedParameter);
             }
-
-            if (behavior != ParameterHandlerBehavior.NoImportance)
-                parametersToOutput = parametersToOutput.OrderByDescending(p => p.Importance).ToList(); // Sort parameters by importance
-
-            if (behavior == ParameterHandlerBehavior.NoCompression)
-                return parametersToOutput;
-
-            return CompressParameters(parametersToOutput);
-
         }
 
         public static List<FTParameter> CompressParameters(List<FTParameter> parametersToOutput)
         {
             List<FTParameter> recommendedParameters = new List<FTParameter>();
 
-            int highestImportance = importanceBias > 0 ? parametersToOutput[0].Importance : 0;
+            int highestImportance = 11;
             int _importanceBias = importanceBias;
             int minimumTotalSize = 0;
 
-            int maximumBits = availableBits;
+            int maximumBits = 0;
+            parametersToOutput.ForEach(p => maximumBits += p.MaximumSize);
+
+            Debug.Log(maximumBits);
 
             int totalBits = 0;
             while (totalBits < availableBits && totalBits < maximumBits)
@@ -127,15 +133,14 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 }
                 else _importanceBias--;
 
-                maximumBits = 0;
                 recommendedParameters.ForEach(p => maximumBits += p.MaximumSize);
 
-                foreach (var parameter in recommendedParameters) // If we have memory left over, add more size to each parameter until we hit the cap.
+                foreach (var parameter in recommendedParameters) // Add parameters and stop if we hit the cap.
                 {
                     if (totalBits + 1 <= availableBits && parameter.Size < parameter.MaximumSize)
                     {
-                        parameter.Size++;
-                        totalBits++;
+                        parameter.Size += 1;
+                        totalBits += 1;
                     }
                 }
             }
