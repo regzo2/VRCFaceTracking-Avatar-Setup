@@ -9,18 +9,18 @@ using UnityEngine;
 using VRC.SDK3.Avatars.Components;
 using VRC.SDK3.Avatars.ScriptableObjects;
 using VRCFaceTracking.Tools.Avatar_Setup.Containers;
-using static VRCFaceTracking.Tools.Avatar_Setup.Containers.FTAnimationContainers;
-using static VRCFaceTracking.Tools.Avatar_Setup.Containers.FTParameterHandlers;
+using static VRCFaceTracking.Tools.Avatar_Setup.Handlers.FTParameterHandler;
 using static VRCFaceTracking.Tools.Avatar_Setup.Containers.VRCFTParameterContainers;
 
 namespace VRCFaceTracking.Tools.Avatar_Setup
 {
-    public class FaceTrackingToolsetWindow : EditorWindow
+    public class VRCFTSetupConfiguratorWindow : EditorWindow
     {
         int tab = 0;
 
         private VRCAvatarDescriptor _avdescriptor;
         public static UserConversionConfig customParametersContainer;
+        private AnimationClip customAnimationTest;
 
         private SkinnedMeshRenderer _mesh;
         private SkinnedMeshRenderer[] _meshes;
@@ -45,7 +45,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup
         public static void ShowWindow()
         {
             AssetDatabase.Refresh();
-            var window = EditorWindow.GetWindow<FaceTrackingToolsetWindow>("Avatar Setup");
+            var window = EditorWindow.GetWindow<VRCFTSetupConfiguratorWindow>("Avatar Setup");
             window.maxSize = new Vector2(512, 1024);
             window.minSize = new Vector2(480, 480);
             window.Show();
@@ -117,131 +117,11 @@ namespace VRCFaceTracking.Tools.Avatar_Setup
 
             EditorGUILayout.Space(20);
 
-            tab = GUILayout.Toolbar(tab, new string[] { "Avatar Setup", "Conversions" });
-
             allUserParameters.Clear();
             customParametersContainer.GetAllParameters().ForEach(p => allUserParameters.AddRange(p.ToUnifiedParameters()));
 
 
-            switch (tab)
-            {
-                case 0:
-                    DrawShapeSetup();
-                    DrawAvatarSetup();
-                    break;
-                case 1:
-                    UnifiedConversionConfigurator.DrawConversionConfigurator();
-                    break;
-            }
-        }
-
-        private void DrawAvatarSetup()
-        {
-            advancedSuggest = EditorGUILayout.Toggle(
-                new GUIContent(
-                    "Advanced",
-                    "Adds more sliders for FT suggestions."),
-                advancedSuggest
-            );
-
-            if (_avdescriptor != null)
-                maxRange = VRCExpressionParameters.MAX_PARAMETER_COST - _avdescriptor.expressionParameters.CalcTotalCost();
-            else maxRange = VRCExpressionParameters.MAX_PARAMETER_COST;
-
-            FTParameterHandlers.availableBits = (int)EditorGUILayout.Slider(
-                new GUIContent(
-                    "Bits",
-                    "Tries to fit parameters into set space."),
-                FTParameterHandlers.availableBits,
-                minRange,
-                maxRange
-            );
-
-            if (!advancedSuggest)
-            {
-                FTParameterHandlers.importanceBias = 1;
-                FTParameterHandlers.importanceThreshold = 1;
-                switch (FTParameterHandlers.availableBits)
-                {
-                    case int i when i <= 40:
-                        FTParameterHandlers.qualityThreshold = 0;
-                        break;
-                    case int i when i <= 50:
-                        FTParameterHandlers.qualityThreshold = 1;
-                        break;
-                    case int i when i <= 60:
-                        FTParameterHandlers.qualityThreshold = 2;
-                        break;
-                    case int i when i <= 70:
-                        FTParameterHandlers.qualityThreshold = 3;
-                        break;
-                    case int i when i <= 90:
-                        FTParameterHandlers.qualityThreshold = 4;
-                        break;
-                    case int i when i <= 128:
-                        FTParameterHandlers.qualityThreshold = 5;
-                        break;
-                    case int i when i <= 192:
-                        FTParameterHandlers.qualityThreshold = 6;
-                        break;
-                    case int i when i <= 256:
-                        FTParameterHandlers.qualityThreshold = 7;
-                        break;
-                }
-            }
-            else
-            {
-                FTParameterHandlers.qualityThreshold = (int)EditorGUILayout.Slider(
-                    new GUIContent(
-                        "Quality",
-                        "Quality 11 removes all combination parameters"),
-                    FTParameterHandlers.qualityThreshold,
-                    0,
-                    11
-                );
-
-                FTParameterHandlers.importanceBias = (int)EditorGUILayout.Slider(
-                    new GUIContent(
-                        "Bias",
-                        "0 removes all importance bias"),
-                    FTParameterHandlers.importanceBias,
-                    0,
-                    4
-                );
-
-                FTParameterHandlers.importanceThreshold = (int)EditorGUILayout.Slider(
-                    new GUIContent(
-                        "Parameter Threshold",
-                        "1 removes currently unused shapes from all interfaces"),
-                    FTParameterHandlers.importanceThreshold,
-                    0,
-                    11
-                );
-            }
-
-            EditorGUILayout.HelpBox(
-                "Quality: " + FTParameterHandlers.qualityThreshold +
-                "\nParameter Importance Cutoff: " + FTParameterHandlers.importanceThreshold +
-                "\nImportance Bias: " + FTParameterHandlers.importanceBias,
-                MessageType.None);
-
-            _recParameters = FTParameterHandlers.RecommendParameters(allUserParameters, AllUnifiedCombinedExpressions);
-
-            string totalMsg = "";
-            int totalSize = 0;
-
-            foreach (FTParameter parameter in _recParameters)
-            {
-                totalMsg += parameter.Name + " Size: " + parameter.Size + "\n";
-                totalSize += parameter.Size;
-
-            }
-
-            totalMsg += "\nTotal Size: " + totalSize;
-
-            scrollMsgPos = EditorGUILayout.BeginScrollView(scrollMsgPos);
-            EditorGUILayout.HelpBox(totalMsg, MessageType.None);
-            EditorGUILayout.EndScrollView();
+            UnifiedConversionConfigurator.DrawConversionConfigurator();
         }
 
         private void DrawShapeSetup()
@@ -267,6 +147,8 @@ namespace VRCFaceTracking.Tools.Avatar_Setup
 
                 //Rect r = GetWindow(typeof(VRCFTManager)).position;
                 _mesh = _meshes[_selectMesh];
+
+                Debug.Log(_mesh.gameObject.GetHeirarchy());
 
                 _blendshapesFromMesh = GenerateBlendshapeList(_mesh);
 
@@ -311,11 +193,6 @@ namespace VRCFaceTracking.Tools.Avatar_Setup
                     EditorGUILayout.EndScrollView();
                 }
             }
-        }
-
-        private object MakeTex(int v1, int v2, Color color)
-        {
-            throw new NotImplementedException();
         }
 
         public static List<string> GenerateBlendshapeList(SkinnedMeshRenderer mesh)

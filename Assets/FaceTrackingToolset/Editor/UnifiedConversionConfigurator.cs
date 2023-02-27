@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEngine;
 using VRCFaceTracking.Tools.Avatar_Setup.Containers;
 using static VRCFaceTracking.Tools.Avatar_Setup.Containers.VRCFTParameterContainers;
-using static VRCFaceTracking.Tools.Avatar_Setup.FaceTrackingToolsetWindow;
+using static VRCFaceTracking.Tools.Avatar_Setup.VRCFTSetupConfiguratorWindow;
 using System;
 
 public static class UnifiedConversionConfigurator

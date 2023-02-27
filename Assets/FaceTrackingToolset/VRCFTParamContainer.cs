@@ -2,12 +2,14 @@
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Analytics;
-using static VRCFaceTracking.Tools.Avatar_Setup.Containers.FTAnimationContainers;
 
 namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
 {
     public static class VRCFTParameterContainers
     {
+        public static int GLOBAL_MINIMUM_PARAMETER_SIZE = 3;
+        public static int GLOBAL_MAXIMUM_PARAMETER_SIZE = 8; // VRChat's networked float size, will create animations as floats first then control them via binary conversions in animator.
+
         public enum UnifiedExpressions
         {
             #region Eye Gaze Expressions
@@ -197,14 +199,21 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             Hidden,
         }
 
-        public class FTParameter
+        public interface IFTParameter
         {
-            public static int GLOBAL_MINIMUM_SIZE = 3;
-            public static int GLOBAL_MAXIMUM_SIZE = 8; // VRChat's networked float size, will create animations as floats first then control them via binary conversions in animator.
+            string Name { get; set; }
+            int Size { get; set; }
+            int MinimumSize { get; set; }
+            int MaximumSize { get; set; }
+            int Importance { get; set; }
+            FTBlend CreateFTBlend();
+        }
 
+        public class FTParameter : IFTParameter
+        {
             // Relevant to organizing and compacting the expression parameters.
             private int minimumSize;
-            private int maximumSize = GLOBAL_MAXIMUM_SIZE; // 8 = float parameter, <8 is a binary parameter.
+            private int maximumSize = GLOBAL_MAXIMUM_PARAMETER_SIZE; // 8 = float parameter, <8 is a binary parameter.
 
             public string Name { get; set; }
             public int Size { get; set; }
@@ -214,31 +223,89 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 set
                 {
                     minimumSize = value;
-                    if (value < GLOBAL_MINIMUM_SIZE)
-                        minimumSize = GLOBAL_MINIMUM_SIZE;
-                    if (value > GLOBAL_MAXIMUM_SIZE)
-                        minimumSize = GLOBAL_MAXIMUM_SIZE;
+                    if (value < GLOBAL_MINIMUM_PARAMETER_SIZE)
+                        minimumSize = GLOBAL_MINIMUM_PARAMETER_SIZE;
+                    if (value > GLOBAL_MAXIMUM_PARAMETER_SIZE)
+                        minimumSize = GLOBAL_MAXIMUM_PARAMETER_SIZE;
                 }
             }
-            public int MaximumSize { get { return maximumSize; } set { maximumSize = GLOBAL_MAXIMUM_SIZE; } }
+            public int MaximumSize { get { return maximumSize; } set { maximumSize = GLOBAL_MAXIMUM_PARAMETER_SIZE; } }
             public int Importance { get; set; }
             public bool IsUsed { get; set; }
+            public FTAnimation Clip { get; set; }
+            public virtual FTBlend CreateFTBlend()
+            {
+                FTBlend _blend = new FTBlend();
+                FTBlendChild _childZero = new FTBlendChild();
+                FTBlendChild _child = new FTBlendChild();
 
-            // Relevant to generating animations.
-            public List<IFTAnimation> Animations { get; set; } // animations connected to this parameter.
+                FTAnimation _zero = Clip;
+                foreach (FTAnimationProperty prop in _zero.Properties) 
+                    prop.Value = 0.0f;
+
+                _childZero.Animation = _zero;
+                _childZero.Position = 0.0f;
+
+                _child.Animation = Clip;
+                _child.Position = 1.0f;
+
+                _blend.Type = FTBlendType.Blend;
+                _blend.Parameter = Name;
+                _blend.Name = Name;
+                _blend.AddChild(_child);
+                _blend.AddChild(_childZero);
+                return _blend;
+            }
         }
 
-        public class FTCombinedParameterPart : FTParameter
+        public class FTChildParameter : FTParameter
         {
             public BlendTreeDriveType CombinedDriver { get; set; }
             public float minRange = 0;
-            public float maxRange = 1; 
+            public float maxRange = 1;
+            public override FTBlend CreateFTBlend()
+            {
+                FTBlend _blend = new FTBlend();
+                FTBlendChild _childZero = new FTBlendChild();
+                FTBlendChild _child = new FTBlendChild();
+
+                _childZero.Position = 0.0f;
+
+                _child.Animation = Clip;
+                _child.Position = 1.0f;
+
+                _blend.Type = FTBlendType.Blend;
+                _blend.AddChild(_child);
+                _blend.AddChild(_childZero);
+                return _blend;
+            }
         }
 
         public class CombinedFTParameter : FTParameter
         {
-            public List<FTCombinedParameterPart> Parameters { get; set; } // Base parameters named that exist in here will get their derived base data transplanted into this container.
+            public List<FTChildParameter> Parameters { get; set; } // Base parameters named that exist in here will get their derived base data transplanted into this container.
             public int Quality { get; set; }
+
+            public override FTBlend CreateFTBlend() // 'converts' this parameter into an IFTAnimation
+            {
+                FTBlend _blend = new FTBlend();
+                FTBlendChild _childZero = new FTBlendChild();
+                List<FTBlendChild> _childs = new List<FTBlendChild>();
+
+                foreach (FTChildParameter _param in Parameters)
+                {
+                    FTBlendChild _child = new FTBlendChild();
+                    _child.Animation = _param.Clip;
+                    _child.Position = 1.0f;
+                    _childs.Add(_child);
+                }
+
+                _blend.Type = FTBlendType.Blend;
+                _blend.AddChild(_childs);
+                _blend.AddChild(_childZero);
+
+                return _blend;
+            }
         }
 
         public static readonly List<FTParameter> AllUnifiedBaseParameters = new List<FTParameter>
@@ -364,12 +431,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "EyesY", Quality = 10, MinimumSize = 4, Importance = 11, 
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.PositiveNegative,
                         Name = "EyeLeftY"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.PositiveNegative,
                         Name = "EyeRightY"},
                 }
@@ -377,12 +444,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "EyesX", Quality = 0, MinimumSize = 4, Importance = 11,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.PositiveNegative,
                         Name = "EyeLeftX"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.PositiveNegative,
                         Name = "EyeRightX"},
                 }
@@ -390,12 +457,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "EyeLidRight", Quality = 10, MinimumSize = 4, Importance = 11,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "EyeOpenRight",  minRange = 0, maxRange = 0.8f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "EyeWideRight", minRange = 0.8f, maxRange = 1f},
                 }
@@ -403,12 +470,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "EyeLidLeft", Quality = 10, MinimumSize = 4, Importance = 11,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "EyeOpenLeft",  minRange = 0, maxRange = 0.8f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "EyeWideLeft", minRange = 0.8f, maxRange = 1f},
                 }
@@ -416,18 +483,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "EyeLid", Quality = 2, MinimumSize = 4, Importance = 11,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "EyeOpenLeft",  minRange = 0, maxRange = 0.8f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "EyeOpenRight", minRange = 0, maxRange = 0.8f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "EyeWideLeft", minRange = 0.8f, maxRange = 1f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "EyeWideRight", minRange = 0.8f, maxRange = 1f},
                 }
@@ -435,12 +502,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "EyeSquint", Quality = 4, MinimumSize = 2, Importance = 8,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "EyeSquintLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "EyeSquintRight"},
                 }
@@ -448,12 +515,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "EyeDilation", Quality = 9, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "PupilDiameterLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "PupilDiameterRight"},
                 }
@@ -464,12 +531,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "LipSuckUpper", Quality = 8, MinimumSize = 2, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipSuckUpperLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipSuckUpperRight",  minRange = 0, maxRange = 1.0f},
                 }
@@ -477,12 +544,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "LipSuckLower", Quality = 8, MinimumSize = 2, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipSuckLowerLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipSuckLowerRight",  minRange = 0, maxRange = 1.0f},
                 }
@@ -490,18 +557,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "LipSuck", Quality = 1, MinimumSize = 2, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipSuckUpperLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipSuckUpperRight",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipSuckLowerLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipSuckLowerRight",  minRange = 0, maxRange = 1.0f},
                 }
@@ -509,12 +576,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "LipFunnelUpper", Quality = 8, MinimumSize = 2, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipFunnelUpperLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipFunnelUpperRight",  minRange = 0, maxRange = 1.0f},
                 }
@@ -522,12 +589,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "LipFunnelLower", Quality = 8, MinimumSize = 2, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipFunnelLowerLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipFunnelLowerRight",  minRange = 0, maxRange = 1.0f},
                 }
@@ -535,18 +602,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "LipFunnel", Quality = 2, MinimumSize = 2, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipFunnelUpperLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipFunnelUpperRight",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipFunnelLowerLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipFunnelLowerRight",  minRange = 0, maxRange = 1.0f},
                 }
@@ -554,12 +621,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "LipPuckerUpper", Quality = 8, MinimumSize = 2, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipPuckerUpperLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipPuckerUpperRight",  minRange = 0, maxRange = 1.0f},
                 }
@@ -567,12 +634,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "LipPuckerLower", Quality = 8, MinimumSize = 2, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipPuckerLowerLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipPuckerLowerRight",  minRange = 0, maxRange = 1.0f},
                 }
@@ -580,18 +647,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "LipPucker", Quality = 7, MinimumSize = 2, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipPuckerUpperLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipPuckerUpperRight",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipPuckerLowerLeft",  minRange = 0, maxRange = 1.0f},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "LipPuckerLowerRight",  minRange = 0, maxRange = 1.0f},
                 }
@@ -602,12 +669,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "JawZ", Quality = 10, MinimumSize = 2, Importance = 4,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "JawForwards"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "JawBackwards"},
                 }
@@ -615,12 +682,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "JawX", Quality = 10, MinimumSize = 2, Importance = 4,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "JawRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "JawLeft"},
                 }
@@ -631,12 +698,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "CheekSquint", Quality = 4, MinimumSize = 2, Importance = 6,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "CheekSquintLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "CheekSquintRight"},
                 }
@@ -644,12 +711,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "CheekLeftPuffSuck", Quality = 10, MinimumSize = 2, Importance = 6,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "CheekPuffLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "CheekSuckLeft"},
                 }
@@ -657,12 +724,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "CheekRightPuffSuck", Quality = 10, MinimumSize = 2, Importance = 6,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "CheekPuffRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "CheekSuckRight"},
                 }
@@ -670,18 +737,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "CheekPuffSuck", Quality = 10, MinimumSize = 2, Importance = 6,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "CheekPuffRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "CheekPuffLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "CheekSuckRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "CheekSuckLeft"},
                 }
@@ -689,12 +756,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "CheekSuck", Quality = 6, MinimumSize = 2, Importance = 6,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "CheekSuckRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "CheekSuckLeft"},
                 }
@@ -705,12 +772,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthCornersYLeft", Quality = 10, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthFrownLeft"},
                 }
@@ -718,12 +785,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthCornersYRight", Quality = 10, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthFrownRight"},
                 }
@@ -731,12 +798,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthSmileRight", Quality = 8, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerPullRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantRight"}
                 }
@@ -744,12 +811,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthSmileLeft", Quality = 8, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerPullLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantLeft"}
                 }
@@ -757,18 +824,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "SmileSadLeft", Quality = 6, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerPullLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthFrownLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthStretchLeft"},
                 }
@@ -776,18 +843,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "SmileSadRight", Quality = 6, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerPullRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthFrownRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthStretchRight"},
                 }
@@ -795,15 +862,15 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "SmileFrownLeft", Quality = 9, MinimumSize = 4, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerPullLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthFrownLeft"},
                 }
@@ -811,15 +878,15 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "SmileFrownRight", Quality = 9, MinimumSize = 4, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerPullRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthFrownRight"},
                 }
@@ -827,24 +894,24 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "SmileFrown", Quality = 4, MinimumSize = 4, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerPullRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerPullLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthFrownRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthFrownLeft"},
                 }
@@ -852,30 +919,30 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "SmileSad", Quality = 2, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerPullRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerPullLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthCornerSlantLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthFrownRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthStretchRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthFrownLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthStretchLeft"},
                 }
@@ -886,12 +953,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthUpperX", Quality = 10, MinimumSize = 2, Importance = 8,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthUpperLeft"},
                 }
@@ -899,12 +966,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthLowerX", Quality = 10, MinimumSize = 2, Importance = 8,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthLowerRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthLowerLeft"},
                 }
@@ -912,18 +979,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthX", Quality = 6, MinimumSize = 2, Importance = 8,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthLowerRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthLowerLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "MouthUpperLeft"},
                 }
@@ -934,12 +1001,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "NoseSneer", Quality = 2, MinimumSize = 2, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "NoseSneerRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "NoseSneerLeft"},
                 }
@@ -947,12 +1014,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthRaiser", Quality = 4, MinimumSize = 2, Importance = 7,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthRaiserUpper"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthRaiserLower"},
                 }
@@ -960,24 +1027,24 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthOpen", Quality = 2, MinimumSize = 2, Importance = 7,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperDeepenRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperInnerUpRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperDeepenLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperInnerUpLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthLowerDownLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthLowerDownLeft"},
                 }
@@ -985,12 +1052,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthUpperUpRight", Quality = 8, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperDeepenRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperInnerUpRight"},
                 }
@@ -998,12 +1065,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthUpperUpLeft", Quality = 8, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperDeepenLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperInnerUpLeft"},
                 }
@@ -1011,18 +1078,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthUpperUp", Quality = 4, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperDeepenRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperInnerUpRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperDeepenLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthUpperInnerUpLeft"},
                 }
@@ -1030,12 +1097,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthLowerDown", Quality = 4, MinimumSize = 4, Importance = 10,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthLowerDownLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthLowerDownRight"},
                 }
@@ -1043,12 +1110,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthDimple", Quality = 4, MinimumSize = 2, Importance = 8,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthDimpleLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthDimpleRight"},
                 }
@@ -1056,12 +1123,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthStretch", Quality = 4, MinimumSize = 2, Importance = 8,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthStretchLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthStretchRight"},
                 }
@@ -1069,12 +1136,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthTightener", Quality = 4, MinimumSize = 2, Importance = 8,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthTightenerLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthTightenerRight"},
                 }
@@ -1082,12 +1149,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthPress", Quality = 4, MinimumSize = 2, Importance = 8,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthPressLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthPressRight"},
                 }
@@ -1095,18 +1162,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "MouthPressTighten", Quality = 1, MinimumSize = 2, Importance = 8,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthTightenerLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthTightenerRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthPressLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "MouthPressRight"},
                 }
@@ -1117,12 +1184,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "BrowDownRight", Quality = 9, MinimumSize = 2, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowLowererRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowPinchRight"},
                 }
@@ -1130,12 +1197,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "BrowDownLeft", Quality = 9, MinimumSize = 2, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowLowererLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowPinchLeft"},
                 }
@@ -1143,18 +1210,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "BrowsDown", Quality = 8, MinimumSize = 2, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowLowererRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowLowererLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowPinchRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowPinchLeft"},
                 }
@@ -1162,12 +1229,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "BrowsInnerUp", Quality = 8, MinimumSize = 2, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowInnerUpRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowInnerUpLeft"},
                 }
@@ -1175,12 +1242,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "BrowsOuterUp", Quality = 8, MinimumSize = 2, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowOuterUpRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowOuterUpLeft"},
                 }
@@ -1188,18 +1255,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "BrowExpressionRight", Quality = 5, MinimumSize = 3, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowOuterUpRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowInnerUpRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "BrowLowererRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "BrowPinchRight"},
                 }
@@ -1207,18 +1274,18 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "BrowExpressionLeft", Quality = 5, MinimumSize = 3, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowOuterUpLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowInnerUpLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "BrowLowererLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "BrowPinchLeft"},
                 }
@@ -1226,30 +1293,30 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "BrowExpression", Quality = 3, MinimumSize = 3, Importance = 9,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowOuterUpRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowInnerUpRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowOuterUpLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "BrowInnerUpLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "BrowLowererRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "BrowPinchRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "BrowLowererLeft"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "BrowPinchLeft"},
                 }
@@ -1260,12 +1327,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "TongueX", Quality = 10, MinimumSize = 3, Importance = 5,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "TongueRight"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "TongueLeft"},
                 }
@@ -1273,12 +1340,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "TongueY", Quality = 10, MinimumSize = 3, Importance = 5,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "TongueUp"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "TongueDown"},
                 }
@@ -1286,12 +1353,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "TongueArchY", Quality = 9, MinimumSize = 2, Importance = 0,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "TongueBendDown"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "TongueCurlUp"},
                 }
@@ -1299,12 +1366,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             new CombinedFTParameter
             {
                 Name = "TongueShape", Quality = 9, MinimumSize = 2, Importance = 0,
-                Parameters = new List<FTCombinedParameterPart>
+                Parameters = new List<FTChildParameter>
                 {
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Positive,
                         Name = "TongueSquish"},
-                    new FTCombinedParameterPart {
+                    new FTChildParameter {
                         CombinedDriver = BlendTreeDriveType.Negative,
                         Name = "TongueFlat"},
                 }

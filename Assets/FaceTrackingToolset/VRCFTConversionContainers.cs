@@ -6,14 +6,13 @@ using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 using static VRCFaceTracking.Tools.Avatar_Setup.Containers.VRCFTParameterContainers;
-using static VRCFaceTracking.Tools.Avatar_Setup.Containers.FTAnimationContainers;
+using static VRCFaceTracking.Tools.Avatar_Setup.Handlers.FTParameterHandler;
 
 namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
 {
     public interface IUserConversionParameter
     {
         string Name { get; set; } // name of conversion that will populate avatar setup fields.
-        IFTAnimation Animation { get; set; } // associated animation for said conversion (usually is directly a blendshape).
         List<FTParameter> ToUnifiedParameters(); // converts parameter to Unified parameters that exist in the VRCFTParameterContainers.
     }
 
@@ -24,7 +23,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
         public string Name { get; set; } // Name of conversion. This will be the basis of the shape's name, especially in the case of assigning blendshapes from an avatar.
 
         [SerializeField]
-        public IFTAnimation Animation { get; set; } // Assigned by user, either through an 'Assign Blendshape' or 'Assign Animation' field (TBD).
+        public List<FTAnimation> Animations { get; set; } // Assigned by user, either through an 'Assign Blendshape' or 'Assign Animation' field (TBD).
 
         [SerializeField]
         public List<UnifiedExpressions> UnifiedConnections; // Configured in editor util (and baked in the config). Tells the avatar setup what this shape assigns to in the Unified parameter system.
@@ -50,7 +49,8 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                 return parameters;
             }
 
-            FTParameterHandlers.CombineBaseParameters(ref parameters, AllUnifiedCombinedExpressions, 0); // if this conversion contains any known Unified parameter combinations, use that instead.
+            if (parameters.Count > 1)
+                CombineBaseParameters(ref parameters, AllUnifiedCombinedExpressions, 0);
             return parameters;
         }
 
@@ -67,7 +67,8 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
     {
         [SerializeField]
         public string Name { get; set; }
-        public IFTAnimation Animation { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+
+        public bool showGazes = false;
 
         [SerializeField]
         public string lookUpShape;
@@ -78,12 +79,24 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
         [SerializeField]
         public string lookRightShape;
 
-        public bool showGazes = false;
-
         [SerializeField]
         public string pupilDiameter;
         [SerializeField]
         public string openness;
+
+        [SerializeField]
+        public FTAnimation lookUpAnim;
+        [SerializeField]
+        public FTAnimation lookDownAnim;
+        [SerializeField]
+        public FTAnimation lookLeftAnim;
+        [SerializeField]
+        public FTAnimation lookRightAnim;
+
+        [SerializeField]
+        public FTAnimation pupilDiameterAnim;
+        [SerializeField]
+        public FTAnimation opennessAnim;
 
         public List<FTParameter> ToUnifiedParameters()
         {
@@ -91,31 +104,24 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
 
             try
             {
-                foreach (var param in AllUnifiedBaseParameters)
+                Parallel.ForEach(AllUnifiedBaseParameters.AsParallel().AsOrdered(), param =>
                 {
                     if (param.Name.Contains(Name))
                     {
-
                         if (param.Name.Contains("Open"))
                             parameters.Add(param);
+                        else if (param.Name.Contains("Pupil"))
+                            parameters.Add(param);
+                        else if (param.Name.Contains("Eye"))
+                            parameters.Add(param);
                     }
-                }
+                });
             }
             catch (NullReferenceException)
             {
                 return new List<FTParameter>();
             }
-            /*
-            Parallel.ForEach(UnifiedConnections.AsParallel().AsOrdered(), rep =>
-            {
-                foreach (var param in AllUnifiedBaseParameters)
-                    if (param.Name == rep.ToString())
-                    {
-                        parameters.Add(param);
-                        break;
-                    }
-            });
-            */
+            
             return parameters;
         }
     }

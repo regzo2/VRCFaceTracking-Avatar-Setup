@@ -6,9 +6,9 @@ using VRCFaceTracking.Tools.Avatar_Setup.Containers;
 using static VRCFaceTracking.Tools.Avatar_Setup.Containers.VRCFTParameterContainers;
 using UnityEngine;
 
-namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
+namespace VRCFaceTracking.Tools.Avatar_Setup.Handlers
 {
-    public static class FTParameterHandlers 
+    public class FTParameterHandler 
     {
         public enum ParameterHandlerBehavior
         {
@@ -18,12 +18,12 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             NoImportance,
         }
 
-        public static int availableBits;
-        public static int qualityThreshold;
-        public static int importanceThreshold = 1;
-        public static int importanceBias;
+        public int availableBits;
+        public int qualityThreshold;
+        public int importanceThreshold;
+        public int importanceBias;
 
-        public static List<FTParameter> RecommendParameters(List<FTParameter> parameters, List<CombinedFTParameter> combinedParameters, ParameterHandlerBehavior behavior = ParameterHandlerBehavior.Default)
+        public List<FTParameter> RecommendParameters(List<FTParameter> parameters, List<CombinedFTParameter> combinedParameters, ParameterHandlerBehavior behavior = ParameterHandlerBehavior.Default)
         {
             List<FTParameter> parametersToOutput = parameters.Where(p => p.Size <= availableBits && p.Importance >= importanceThreshold).ToList();
 
@@ -42,8 +42,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
 
         public static void CombineBaseParameters(ref List<FTParameter> parametersToOutput, List<CombinedFTParameter> combinedParameters, int quality)
         {
-
-            List<CombinedFTParameter> combinedParametersToOutput = combinedParameters.Where(p => p.Size <= availableBits).OrderBy(cp => cp.Quality).ToList();
+            List<CombinedFTParameter> combinedParametersToOutput = combinedParameters.OrderBy(cp => cp.Quality).ToList();
             List<FTParameter> _parametersToRemove = new List<FTParameter>();
 
             foreach (var combinedParameter in combinedParametersToOutput) // incorporates combined parameters by replacing existing combininations.
@@ -63,7 +62,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
                         {
                             if (combinedParameter.Importance < result.Importance) // Pull up combined importance to overall base parameters' highest importance.
                                 combinedParameter.Importance = result.Importance;
-                            combinedParameter.Parameters[i].Animations = result.Animations; // use results data.
+                            combinedParameter.Parameters[i].Clip = result.Clip; // use results data.
                             combinedParameter.Parameters[i].Importance = result.Importance;
                             combinedParameter.Parameters[i].MinimumSize = result.MinimumSize;
                             combinedParameter.Parameters[i].MaximumSize = result.MaximumSize;
@@ -84,7 +83,7 @@ namespace VRCFaceTracking.Tools.Avatar_Setup.Containers
             }
         }
 
-        public static List<FTParameter> CompressParameters(List<FTParameter> parametersToOutput)
+        public List<FTParameter> CompressParameters(List<FTParameter> parametersToOutput)
         {
             List<FTParameter> recommendedParameters = new List<FTParameter>();
 
